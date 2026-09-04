@@ -1,0 +1,11 @@
+/* App-level resets that sit AFTER cake& CSS (see main.tsx import order). */
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
