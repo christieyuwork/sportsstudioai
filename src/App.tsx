@@ -1,5 +1,6 @@
 import { CakeProvider } from '@cake-admin/cakeand';
 import { SignInPage } from './pages/SignInPage';
+import { StudioScrollbarGlobals } from './styles/scrollbar-theme';
 
 /**
  * App root.
@@ -13,6 +14,7 @@ import { SignInPage } from './pages/SignInPage';
 export default function App() {
   return (
     <CakeProvider mode="dark.a">
+      <StudioScrollbarGlobals />
       <SignInPage />
     </CakeProvider>
   );

@@ -3,18 +3,21 @@ import styled from 'styled-components';
 import { Toast } from '@cake-admin/cakeand';
 import { Toast as RadixToast } from 'radix-ui';
 import { uploadProjectVideo } from '../api/projects';
-import { DEMO_PROJECT_ID, demoProjects } from '../data/demoProjects';
+import { DEMO_PROJECT, DEMO_PROJECT_ID } from '../data/demoProjects';
 import type { Project } from '../types/project';
 import type { SignInUser } from '../types/auth';
 import { AppSidebar } from '../components/AppSidebar';
-import {
-  AIAgentWorkspace,
-  MOCK_AGENT_CLIPS,
-} from '../components/AIAgentWorkspace';
-import { DetectedEventsWorkspace } from '../components/DetectedEventsWorkspace';
+import { SidebarToggleButton } from '../components/SidebarToggleButton';
+import { AIAgentWorkspace } from '../components/AIAgentWorkspace';
+import { MOCK_AGENT_CLIPS } from '../data/mockAgentClips';
+import { EmptyAgentWorkspace } from '../components/EmptyAgentWorkspace';
+import { GeneratedClipsWorkspace } from '../components/GeneratedClipsWorkspace';
 import { ProjectWorkspace } from '../components/ProjectWorkspace';
+import { UserUploadedMediaWorkspace } from '../components/UserUploadedMediaWorkspace';
 import { VideoBackground } from '../components/VideoBackground';
+import { formatSelectedClipsPrompt } from '../lib/selectedClipsPrompt';
 import {
+  ChatBackgroundScrim,
   HomeBackground,
   HomeLayout,
   HomeShell,
@@ -23,7 +26,26 @@ import {
 } from '../styles/home-theme';
 import { AgentMainPane } from '../styles/agent-theme';
 
-const AGENT_CHAT_ID = 'chat-ai-yellow-cards';
+function createEmptyProject(id: string): Project {
+  return {
+    ...DEMO_PROJECT,
+    id,
+    title: 'New project',
+    heading: 'New project',
+    chatThreads: [],
+    events: [],
+    generatedClips: [],
+    media: [],
+    videos: [],
+  };
+}
+
+/** All that is left of the rail once it collapses: the toggle, top left. */
+const CollapsedSidebarSlot = styled.div`
+  display: flex;
+  flex-shrink: 0;
+  align-self: flex-start;
+`;
 
 const ToastViewport = styled(RadixToast.Viewport)`
   position: fixed;
@@ -33,7 +55,10 @@ const ToastViewport = styled(RadixToast.Viewport)`
   display: flex;
   flex-direction: column;
   gap: var(--space-200);
-  width: min(100vw - 32px, 380px);
+  width: min(
+    calc(100vw - var(--space-600)),
+    calc(var(--space-1000) * 5 - var(--space-400))
+  );
   outline: none;
   list-style: none;
   margin: 0;
@@ -52,16 +77,13 @@ export interface HomePageProps {
  * media and reveals the filled Germany vs Netherlands homescreen.
  */
 export function HomePage({ user, onSignOut }: HomePageProps) {
-  const [projects, setProjects] = useState<Project[]>(() =>
-    demoProjects.map((p) => ({
-      ...p,
-      media: p.id === DEMO_PROJECT_ID ? [] : p.media,
-      title: p.id === DEMO_PROJECT_ID ? 'New project' : p.title,
-    })),
-  );
+  const [projects, setProjects] = useState<Project[]>(() => {
+    return [createEmptyProject(DEMO_PROJECT_ID)];
+  });
   const [activeProjectId, setActiveProjectId] = useState(DEMO_PROJECT_ID);
   /** Null so the project row itself is the selected sidebar tab on load. */
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progressPercent, setProgressPercent] = useState(0);
   const [uploadFileName, setUploadFileName] = useState<string | null>(null);
@@ -71,9 +93,13 @@ export function HomePage({ user, onSignOut }: HomePageProps) {
     description: string;
   } | null>(null);
   const [agentRequest, setAgentRequest] = useState<string | null>(null);
+  const [videoRequest, setVideoRequest] = useState<{
+    id: string;
+    clipIds: string[];
+  } | null>(null);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
-  const [activeAgentId, setActiveAgentId] = useState<
-    'detected' | 'clips' | null
+  const [activeProjectView, setActiveProjectView] = useState<
+    'uploaded' | 'clips' | null
   >(null);
 
   const activeProject = useMemo(
@@ -104,7 +130,9 @@ export function HomePage({ user, onSignOut }: HomePageProps) {
             ? {
                 ...project,
                 title: 'Germany vs Netherlands',
+                heading: 'Germany vs Netherlands on 11 July',
                 media,
+                events: DEMO_PROJECT.events,
               }
             : project,
         ),
@@ -122,28 +150,28 @@ export function HomePage({ user, onSignOut }: HomePageProps) {
   }
 
   function handleNewProject() {
-    setProjects((prev) =>
-      prev.map((project) =>
-        project.id === DEMO_PROJECT_ID
-          ? {
-              ...project,
-              title: 'New project',
-              media: [],
-              generatedClips: [],
-              videos: [],
-            }
-          : project,
-      ),
-    );
-    setActiveProjectId(DEMO_PROJECT_ID);
+    const projectId = `project-${crypto.randomUUID()}`;
+    setProjects((prev) => [createEmptyProject(projectId), ...prev]);
+    setActiveProjectId(projectId);
     setActiveChatId(null);
-    setActiveAgentId(null);
+    setActiveProjectView(null);
+    setAgentRequest(null);
+    setVideoRequest(null);
+    setSelectedClipId(null);
   }
 
-  function handleAgentPrompt(prompt: string) {
+  function handleAgentPrompt(prompt: string, videoClipIds?: string[]) {
+    const chatId =
+      activeChatId ?? `${activeProjectId}-agent-${crypto.randomUUID()}`;
+    const threadLabel = prompt.split('\n', 1)[0];
     setAgentRequest(prompt);
+    setVideoRequest(
+      videoClipIds
+        ? { id: crypto.randomUUID(), clipIds: [...videoClipIds] }
+        : null,
+    );
     setSelectedClipId(null);
-    setActiveAgentId(null);
+    setActiveProjectView(null);
     setProjects((prev) =>
       prev.map((project) => {
         if (project.id !== activeProjectId) return project;
@@ -151,8 +179,16 @@ export function HomePage({ user, onSignOut }: HomePageProps) {
           project.generatedClips.length > 0
             ? project.generatedClips
             : MOCK_AGENT_CLIPS;
-        if (project.chatThreads.some((thread) => thread.id === AGENT_CHAT_ID)) {
-          return { ...project, generatedClips };
+        if (project.chatThreads.some((thread) => thread.id === chatId)) {
+          return {
+            ...project,
+            generatedClips,
+            chatThreads: project.chatThreads.map((thread) =>
+              thread.id === chatId
+                ? { ...thread, label: threadLabel, request: prompt }
+                : thread,
+            ),
+          };
         }
 
         return {
@@ -160,36 +196,143 @@ export function HomePage({ user, onSignOut }: HomePageProps) {
           generatedClips,
           chatThreads: [
             {
-              id: AGENT_CHAT_ID,
-              label: 'Analyze yellow cards and provide clips',
+              id: chatId,
+              label: threadLabel,
+              request: prompt,
             },
             ...project.chatThreads,
           ],
         };
       }),
     );
-    setActiveChatId(AGENT_CHAT_ID);
+    setActiveChatId(chatId);
   }
 
   function handleSelectProject(projectId: string) {
     setActiveProjectId(projectId);
-    setActiveAgentId(null);
+    setActiveProjectView(null);
   }
 
   function handleSelectChat(chatId: string | null) {
     setActiveChatId(chatId);
-    if (chatId) setActiveAgentId(null);
+    setVideoRequest(null);
+    if (chatId) {
+      setActiveProjectView(null);
+      const thread = projects
+        .flatMap((project) => project.chatThreads)
+        .find((item) => item.id === chatId);
+      setAgentRequest(thread?.request ?? null);
+    } else {
+      setAgentRequest(null);
+    }
   }
 
-  function handleSelectAgent(
+  function handleComposeAgent(projectId: string) {
+    const chatId = `${projectId}-agent-${crypto.randomUUID()}`;
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              chatThreads: [
+                { id: chatId, label: 'New agent' },
+                ...project.chatThreads,
+              ],
+            }
+          : project,
+      ),
+    );
+    setActiveProjectId(projectId);
+    setActiveProjectView(null);
+    setActiveChatId(chatId);
+    setAgentRequest(null);
+    setVideoRequest(null);
+    setSelectedClipId(null);
+  }
+
+  function handleRenameProject(projectId: string, title: string) {
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              title,
+              heading: title,
+            }
+          : project,
+      ),
+    );
+  }
+
+  function handleDeleteProject(projectId: string) {
+    const remaining = projects.filter((project) => project.id !== projectId);
+    const nextProjects =
+      remaining.length > 0
+        ? remaining
+        : [createEmptyProject(`project-${crypto.randomUUID()}`)];
+    setProjects(nextProjects);
+
+    if (activeProjectId === projectId) {
+      setActiveProjectId(nextProjects[0].id);
+      setActiveChatId(null);
+      setActiveProjectView(null);
+      setAgentRequest(null);
+      setVideoRequest(null);
+      setSelectedClipId(null);
+    }
+  }
+
+  function handleRenameChat(
     projectId: string,
-    agentId: 'detected' | 'clips',
+    chatId: string,
+    title: string,
+  ) {
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              chatThreads: project.chatThreads.map((thread) =>
+                thread.id === chatId ? { ...thread, label: title } : thread,
+              ),
+            }
+          : project,
+      ),
+    );
+  }
+
+  function handleDeleteChat(projectId: string, chatId: string) {
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              chatThreads: project.chatThreads.filter(
+                (thread) => thread.id !== chatId,
+              ),
+            }
+          : project,
+      ),
+    );
+
+    if (activeChatId === chatId) {
+      setActiveChatId(null);
+      setAgentRequest(null);
+      setVideoRequest(null);
+      setSelectedClipId(null);
+    }
+  }
+
+  function handleSelectProjectView(
+    projectId: string,
+    view: 'uploaded' | 'clips',
   ) {
     setActiveProjectId(projectId);
-    setActiveAgentId(agentId);
+    setActiveProjectView(view);
   }
 
   function handleCreateVideo(title: string, clipIds: string[]) {
+    const id = `video-${Date.now()}`;
     setProjects((current) =>
       current.map((project) =>
         project.id === activeProjectId
@@ -198,12 +341,28 @@ export function HomePage({ user, onSignOut }: HomePageProps) {
               videos: [
                 ...project.videos,
                 {
-                  id: `video-${Date.now()}`,
+                  id,
                   title,
                   clipIds,
                   createdAtLabel: 'Just now',
                 },
               ],
+            }
+          : project,
+      ),
+    );
+    return id;
+  }
+
+  function handleRenameVideo(videoId: string, title: string) {
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === activeProjectId
+          ? {
+              ...project,
+              videos: project.videos.map((video) =>
+                video.id === videoId ? { ...video, title } : video,
+              ),
             }
           : project,
       ),
@@ -220,6 +379,21 @@ export function HomePage({ user, onSignOut }: HomePageProps) {
                 video.id === videoId && !video.clipIds.includes(clipId)
                   ? { ...video, clipIds: [...video.clipIds, clipId] }
                   : video,
+              ),
+            }
+          : project,
+      ),
+    );
+  }
+
+  function handleChangeVideoClips(videoId: string, clipIds: string[]) {
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === activeProjectId
+          ? {
+              ...project,
+              videos: project.videos.map((video) =>
+                video.id === videoId ? { ...video, clipIds } : video,
               ),
             }
           : project,
@@ -287,11 +461,40 @@ export function HomePage({ user, onSignOut }: HomePageProps) {
     if (selectedClipId === eventId) setSelectedClipId(null);
   }
 
-  const showingLibrary = activeAgentId === 'clips';
-  const showingAgent =
-    (activeChatId === AGENT_CHAT_ID || showingLibrary) &&
-    (agentRequest !== null || showingLibrary);
-  const showingDetectedEvents = !showingAgent && activeAgentId === 'detected';
+  function handleRenameMedia(mediaId: string, title: string) {
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === activeProjectId
+          ? {
+              ...project,
+              media: project.media.map((item) =>
+                item.id === mediaId ? { ...item, title } : item,
+              ),
+            }
+          : project,
+      ),
+    );
+  }
+
+  function handleDeleteMedia(mediaId: string) {
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === activeProjectId
+          ? {
+              ...project,
+              media: project.media.filter((item) => item.id !== mediaId),
+            }
+          : project,
+      ),
+    );
+  }
+
+  const showingAgent = activeChatId !== null && agentRequest !== null;
+  const showingEmptyAgent = activeChatId !== null && agentRequest === null;
+  const showingUploadedMedia =
+    !showingAgent && !showingEmptyAgent && activeProjectView === 'uploaded';
+  const showingGeneratedClips =
+    !showingAgent && !showingEmptyAgent && activeProjectView === 'clips';
 
   return (
     <RadixToast.Provider swipeDirection="right">
@@ -302,52 +505,142 @@ export function HomePage({ user, onSignOut }: HomePageProps) {
             mp4Src="/media/wave/looping-wave.mp4"
             label="Decorative particle wave background"
           />
+          {showingAgent ? (
+            <ChatBackgroundScrim
+              data-chat-background-scrim
+              aria-hidden="true"
+            />
+          ) : null}
         </HomeBackground>
 
         <HomeLayout>
-          <AppSidebar
-            user={user}
-            projects={projects}
-            activeProjectId={activeProjectId}
-            activeChatId={activeChatId}
-            activeAgentId={activeAgentId}
-            onSelectProject={handleSelectProject}
-            onSelectChat={handleSelectChat}
-            onSelectAgent={handleSelectAgent}
-            onNewProject={handleNewProject}
-            onSignOut={onSignOut}
-          />
+          {sidebarCollapsed ? (
+            <CollapsedSidebarSlot>
+              <SidebarToggleButton
+                label="Expand sidebar"
+                flipped
+                onClick={() => setSidebarCollapsed(false)}
+              />
+            </CollapsedSidebarSlot>
+          ) : (
+            <AppSidebar
+              user={user}
+              projects={projects}
+              activeProjectId={activeProjectId}
+              activeChatId={activeChatId}
+              activeProjectView={activeProjectView}
+              onSelectProject={handleSelectProject}
+              onSelectChat={handleSelectChat}
+              onSelectProjectView={handleSelectProjectView}
+              onComposeAgent={handleComposeAgent}
+              onRenameProject={handleRenameProject}
+              onDeleteProject={handleDeleteProject}
+              onRenameChat={handleRenameChat}
+              onDeleteChat={handleDeleteChat}
+              onNewProject={handleNewProject}
+              onCollapse={() => setSidebarCollapsed(true)}
+              onSignOut={onSignOut}
+            />
+          )}
 
-          {showingAgent ? (
+          {showingEmptyAgent ? (
+            <AgentMainPane>
+              <EmptyAgentWorkspace
+                project={activeProject}
+                selectedClipId={selectedClipId}
+                onSelectClip={setSelectedClipId}
+                uploading={uploading}
+                progressPercent={progressPercent}
+                uploadFileName={uploadFileName}
+                onSubmitPrompt={handleAgentPrompt}
+                onUploadClick={() => {
+                  void handleUploadClick();
+                }}
+                onCreateVideo={handleCreateVideo}
+                onAddClipToVideo={handleAddClipToVideo}
+                onChangeVideoClips={handleChangeVideoClips}
+                onRenameVideo={handleRenameVideo}
+                onRenameGeneratedClip={handleRenameGeneratedClip}
+                onDeleteGeneratedClip={handleDeleteGeneratedClip}
+                onRenameDetectedEvent={handleRenameDetectedEvent}
+                onDeleteDetectedEvent={handleDeleteDetectedEvent}
+                onRenameMedia={handleRenameMedia}
+                onDeleteMedia={handleDeleteMedia}
+                onNotify={showToast}
+              />
+            </AgentMainPane>
+          ) : showingAgent ? (
             <AgentMainPane>
               <AIAgentWorkspace
                 project={activeProject}
                 request={agentRequest ?? ''}
-                libraryOnly={showingLibrary}
+                videoRequest={videoRequest}
                 selectedClipId={selectedClipId}
                 onSelectClip={setSelectedClipId}
                 onSubmitPrompt={handleAgentPrompt}
                 onCreateVideo={handleCreateVideo}
                 onAddClipToVideo={handleAddClipToVideo}
+                onChangeVideoClips={handleChangeVideoClips}
+                onRenameVideo={handleRenameVideo}
                 onRenameGeneratedClip={handleRenameGeneratedClip}
                 onDeleteGeneratedClip={handleDeleteGeneratedClip}
                 onRenameDetectedEvent={handleRenameDetectedEvent}
                 onDeleteDetectedEvent={handleDeleteDetectedEvent}
+                uploading={uploading}
+                progressPercent={progressPercent}
+                uploadFileName={uploadFileName}
+                onUploadClick={() => {
+                  void handleUploadClick();
+                }}
+                onRenameMedia={handleRenameMedia}
+                onDeleteMedia={handleDeleteMedia}
                 onNotify={showToast}
               />
             </AgentMainPane>
-          ) : showingDetectedEvents ? (
+          ) : showingUploadedMedia ? (
             <MainPane>
               <MainContent>
-                <DetectedEventsWorkspace
+                <UserUploadedMediaWorkspace
                   project={activeProject}
-                  onGenerateVideo={(eventIds) =>
+                  uploading={uploading}
+                  progressPercent={progressPercent}
+                  uploadFileName={uploadFileName}
+                  onUploadClick={() => {
+                    void handleUploadClick();
+                  }}
+                  onRename={handleRenameMedia}
+                  onDelete={handleDeleteMedia}
+                  onNotify={showToast}
+                />
+              </MainContent>
+            </MainPane>
+          ) : showingGeneratedClips ? (
+            <MainPane>
+              <MainContent>
+                <GeneratedClipsWorkspace
+                  project={activeProject}
+                  onGenerateFromEvents={(eventIds) => {
+                    const selectedEvents = eventIds
+                      .map((eventId) =>
+                        activeProject.events.find(
+                          (event) => event.id === eventId,
+                        ),
+                      )
+                      .filter(
+                        (event): event is Project['events'][number] =>
+                          Boolean(event),
+                      );
                     handleAgentPrompt(
-                      `Create a highlight video using ${eventIds.length} selected detected events.`,
-                    )
-                  }
-                  onRenameEvent={handleRenameDetectedEvent}
-                  onDeleteEvent={handleDeleteDetectedEvent}
+                      formatSelectedClipsPrompt(selectedEvents),
+                      selectedEvents.map((event) => event.id),
+                    );
+                  }}
+                  onRenameGeneratedClip={handleRenameGeneratedClip}
+                  onDeleteGeneratedClip={handleDeleteGeneratedClip}
+                  onRenameDetectedEvent={handleRenameDetectedEvent}
+                  onDeleteDetectedEvent={handleDeleteDetectedEvent}
+                  onCreateVideo={handleCreateVideo}
+                  onAddClipToVideo={handleAddClipToVideo}
                   onNotify={showToast}
                 />
               </MainContent>
@@ -364,7 +657,14 @@ export function HomePage({ user, onSignOut }: HomePageProps) {
                     void handleUploadClick();
                   }}
                   onSubmitPrompt={handleAgentPrompt}
-                  onOpenDetectedEvents={() => setActiveAgentId('detected')}
+                  onOpenDetectedEvents={() => setActiveProjectView('clips')}
+                  onRenameMedia={handleRenameMedia}
+                  onDeleteMedia={handleDeleteMedia}
+                  onRenameDetectedEvent={handleRenameDetectedEvent}
+                  onDeleteDetectedEvent={handleDeleteDetectedEvent}
+                  onCreateVideo={handleCreateVideo}
+                  onAddClipToVideo={handleAddClipToVideo}
+                  onNotify={showToast}
                 />
               </MainContent>
             </MainPane>

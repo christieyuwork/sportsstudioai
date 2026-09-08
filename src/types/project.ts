@@ -6,6 +6,15 @@
 export interface DetectedEvent {
   id: string;
   timestamp: string;
+  /** Match minute of the moment, e.g. `23` or `'45+2'`. */
+  minute?: number | string;
+  /** Event type behind the title, e.g. `'yellow card'`. */
+  eventType: string;
+  /** Player credited with the moment; absent for crowd or stadium shots. */
+  player?: string;
+  /** Team the player belongs to, used for the flag beside an event row. */
+  country?: string;
+  /** Canonical display title — compose it with `formatClipTitle`. */
   title: string;
   description: string;
   thumbnailUrl: string;
@@ -14,6 +23,7 @@ export interface DetectedEvent {
 /** A clip explicitly requested from the AI agent. */
 export interface GeneratedClip {
   id: string;
+  /** Canonical display title — compose it with `formatClipTitle`. */
   title: string;
   description: string;
   duration: string;
@@ -37,9 +47,11 @@ export interface ProjectVideoOutput {
   createdAtLabel: string;
 }
 
-export interface ProjectChatThread {
+interface ProjectChatThread {
   id: string;
   label: string;
+  /** Undefined while a newly composed agent is still in its empty state. */
+  request?: string;
 }
 
 export interface Project {
@@ -47,8 +59,6 @@ export interface Project {
   title: string;
   /** Shown in the main heading, e.g. "Germany vs Netherlands on 11 July". */
   heading: string;
-  /** Nested sidebar labels when the project has media (Detected events, etc.). */
-  navItems: string[];
   /** Recent prompt/chat rows under the active project block. */
   chatThreads: ProjectChatThread[];
   events: DetectedEvent[];
@@ -64,5 +74,3 @@ export interface UploadProgress {
   percent: number;
   fileName: string;
 }
-
-export type UploadPhase = 'idle' | 'uploading' | 'complete';

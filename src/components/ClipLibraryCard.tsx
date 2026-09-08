@@ -1,19 +1,30 @@
 import { useState } from 'react';
+import type {
+  DragEventHandler,
+  KeyboardEventHandler,
+  ReactNode,
+} from 'react';
 import {
-  Badge,
   Checkbox,
-  IconButton,
   Modal,
   ModalContent,
   ModalFooter,
   SimpleTooltip,
   TextInput,
 } from '@cake-admin/cakeand';
-import { Pencil, Trash2 } from 'lucide-react';
+import { GripVertical, Pencil, Trash2 } from 'lucide-react';
 import { DropdownMenu as RadixDropdownMenu } from 'radix-ui';
 import { StudioIcon } from './StudioIcon';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { RecordingBadge } from './RecordingBadge';
 import {
   DeleteMenuItem,
+  CompactClipBody,
+  CompactClipCard,
+  CompactClipDescription,
+  CompactClipImage,
+  CompactClipMeta,
+  CompactClipTitle,
   DetectedEventBody,
   DetectedEventDescription,
   DetectedEventImage,
@@ -24,12 +35,21 @@ import {
   EventDescriptionTooltip,
   EventMenuContainer,
   EventMenuContent,
-  EventPreviewButton,
-  EventPreviewGlyph,
   EventSelectionControl,
   RenameMenuItem,
   SelectableEventCard,
+  SuggestedClipBody,
+  SuggestedClipCard,
+  SuggestedClipCopy,
+  SuggestedClipDescription,
+  SuggestedClipDragButton,
+  SuggestedClipImage,
+  SuggestedClipMeta,
+  SuggestedClipTitle,
+  SuggestedSourceLabel,
 } from '../styles/detected-events-theme';
+import { ClipPreviewButton } from './ClipPreviewButton';
+import { TooltipIconButton } from './TooltipIconButton';
 
 export interface ClipLibraryCardItem {
   id: string;
@@ -45,8 +65,19 @@ export interface ClipLibraryCardProps {
   selected?: boolean;
   onSelectedChange?: (selected: boolean) => void;
   onPreview: () => void;
-  onRename: (title: string) => void;
-  onDelete: () => void;
+  onRename?: (title: string) => void;
+  onDelete?: () => void;
+  variant?: 'grid' | 'suggested' | 'compact';
+  sourceLabel?: string;
+  metadata?: ReactNode;
+  trailingActions?: ReactNode;
+  draggable?: boolean;
+  onDragStart?: DragEventHandler<HTMLElement>;
+  onDragEnter?: DragEventHandler<HTMLElement>;
+  onDragOver?: DragEventHandler<HTMLElement>;
+  onDrop?: DragEventHandler<HTMLElement>;
+  onDragEnd?: DragEventHandler<HTMLElement>;
+  onDragHandleKeyDown?: KeyboardEventHandler<HTMLButtonElement>;
 }
 
 export function ClipLibraryCard({
@@ -57,15 +88,79 @@ export function ClipLibraryCard({
   onPreview,
   onRename,
   onDelete,
+  variant = 'grid',
+  sourceLabel = 'BBC Broadcast',
+  metadata,
+  trailingActions,
+  draggable = false,
+  onDragStart,
+  onDragEnter,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  onDragHandleKeyDown,
 }: ClipLibraryCardProps) {
   const [renameOpen, setRenameOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [nextTitle, setNextTitle] = useState(item.title);
 
   function submitRename() {
     const title = nextTitle.trim();
     if (!title) return;
-    onRename(title);
+    onRename?.(title);
     setRenameOpen(false);
+  }
+
+  if (variant === 'suggested') {
+    return (
+      <SuggestedClipCard
+        role="article"
+        draggable={draggable}
+        onDragStart={onDragStart}
+        onDragEnter={onDragEnter}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        onDragEnd={onDragEnd}
+      >
+        <SuggestedClipDragButton
+          size="xs"
+          variant="ghost"
+          intent="secondary"
+          label={`Reorder ${item.title}`}
+          icon={<GripVertical size={20} />}
+          onKeyDown={onDragHandleKeyDown}
+        />
+        <SuggestedClipImage src={item.thumbnailUrl} alt="" />
+        <SuggestedClipBody>
+          <SuggestedClipCopy>
+            <SuggestedClipTitle>{item.title}</SuggestedClipTitle>
+            <SuggestedClipDescription>
+              {item.description}
+            </SuggestedClipDescription>
+          </SuggestedClipCopy>
+          <SuggestedClipMeta>
+            <SuggestedSourceLabel>{sourceLabel}</SuggestedSourceLabel>
+            <RecordingBadge>{item.duration}</RecordingBadge>
+            <ClipPreviewButton title={item.title} onPreview={onPreview} />
+          </SuggestedClipMeta>
+        </SuggestedClipBody>
+      </SuggestedClipCard>
+    );
+  }
+
+  if (variant === 'compact') {
+    return (
+      <CompactClipCard $selected={selected} role="article">
+        <CompactClipImage src={item.thumbnailUrl} alt="" />
+        <CompactClipBody>
+          <CompactClipTitle>{item.title}</CompactClipTitle>
+          <CompactClipDescription>{item.description}</CompactClipDescription>
+          {metadata ? <CompactClipMeta>{metadata}</CompactClipMeta> : null}
+        </CompactClipBody>
+        <ClipPreviewButton title={item.title} onPreview={onPreview} />
+        {trailingActions}
+      </CompactClipCard>
+    );
   }
 
   return (
@@ -84,31 +179,18 @@ export function ClipLibraryCard({
         <DetectedEventImage src={item.thumbnailUrl} alt="" />
         <DetectedEventBody>
           <DetectedEventMeta>
-            <Badge color="red" tone="subtle" dot>
-              {item.duration}
-            </Badge>
-          </DetectedEventMeta>
-
-          <div>
-            <EventCardTitleRow>
-              <DetectedEventTitle>{item.title}</DetectedEventTitle>
-              <EventCardActions>
-                <EventPreviewButton
-                  size="sm"
-                  variant="ghost"
-                  intent="secondary"
-                  label={`Preview ${item.title}`}
-                  icon={<EventPreviewGlyph />}
-                  onClick={onPreview}
-                />
+          <RecordingBadge>{item.duration}</RecordingBadge>
+            <EventCardActions>
+              <ClipPreviewButton title={item.title} onPreview={onPreview} />
+              {onRename && onDelete ? (
                 <RadixDropdownMenu.Root>
                   <RadixDropdownMenu.Trigger asChild>
-                    <IconButton
-                      size="sm"
+                    <TooltipIconButton
+                      size="xs"
                       variant="ghost"
                       intent="secondary"
                       label={`More options for ${item.title}`}
-                      icon={<StudioIcon name="more-vert" size={16} />}
+                      icon={<StudioIcon name="more-vert" size={20} />}
                     />
                   </RadixDropdownMenu.Trigger>
                   <RadixDropdownMenu.Portal>
@@ -134,7 +216,7 @@ export function ClipLibraryCard({
                           <DeleteMenuItem
                             leftSlot={<Trash2 size={16} />}
                             showRightSlot={false}
-                            onClick={onDelete}
+                            onClick={() => setDeleteOpen(true)}
                           >
                             Delete
                           </DeleteMenuItem>
@@ -143,8 +225,12 @@ export function ClipLibraryCard({
                     </EventMenuContent>
                   </RadixDropdownMenu.Portal>
                 </RadixDropdownMenu.Root>
-              </EventCardActions>
-            </EventCardTitleRow>
+              ) : null}
+            </EventCardActions>
+          </DetectedEventMeta>
+
+          <EventCardTitleRow>
+            <DetectedEventTitle>{item.title}</DetectedEventTitle>
             <EventDescriptionTooltip>
               <SimpleTooltip
                 trigger={
@@ -152,18 +238,19 @@ export function ClipLibraryCard({
                     {item.description}
                   </DetectedEventDescription>
                 }
-                side="top"
+                side="bottom"
                 align="start"
                 maxWidth="calc(var(--space-1000) * 5)"
               >
                 {item.description}
               </SimpleTooltip>
             </EventDescriptionTooltip>
-          </div>
+          </EventCardTitleRow>
         </DetectedEventBody>
       </SelectableEventCard>
 
-      <Modal
+      {onRename ? (
+        <Modal
         open={renameOpen}
         onOpenChange={setRenameOpen}
         title="Rename clip"
@@ -193,7 +280,18 @@ export function ClipLibraryCard({
             autoFocus
           />
         </ModalContent>
-      </Modal>
+        </Modal>
+      ) : null}
+
+      {onDelete ? (
+        <ConfirmDeleteModal
+          open={deleteOpen}
+          itemName={item.title}
+          itemType="clip"
+          onOpenChange={setDeleteOpen}
+          onConfirm={onDelete}
+        />
+      ) : null}
     </>
   );
 }

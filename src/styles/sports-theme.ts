@@ -7,12 +7,7 @@
  */
 
 import styled from 'styled-components';
-
-/**
- * Figma indigo/alphaLighter. The upstream cake& theme exposes alphaLight
- * (22%) but not this 12% sports-background wash.
- */
-export const SPORTS_INDIGO_ALPHA_LIGHTER = 'rgba(80, 102, 255, 0.12)';
+import { SPORTS_GLASS_BACKGROUND } from './sports-tokens';
 
 /** Full-viewport shell behind the sign-in card. */
 export const PageShell = styled.div`
@@ -46,7 +41,7 @@ export const GlassPanel = styled.div`
   padding: var(--space-400);
   border-radius: var(--radius-400);
   /* Sports overlay: Figma black/50a over video — no exact cake& token match. */
-  background: rgba(0, 0, 0, 0.5);
+  background: ${SPORTS_GLASS_BACKGROUND};
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   /*
@@ -70,7 +65,7 @@ export const BrandBlock = styled.div`
   gap: var(--space-100);
 `;
 
-export const StudioIcon = styled.img`
+export const LoginBrandIcon = styled.img`
   width: 72px;
   height: 72px;
   display: block;
@@ -92,7 +87,7 @@ export const PoweredByRow = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 10px;
+  gap: var(--space-150);
 `;
 
 export const PoweredByText = styled.p`
@@ -112,7 +107,7 @@ export const NvidiaLogo = styled.img`
 
 export const BodyCopy = styled.p`
   margin: 0;
-  font-size: var(--type-size-title);
+  font-size: var(--type-size-subject);
   font-weight: var(--font-weight-regular);
   line-height: 1.35;
   letter-spacing: 0.4px;
@@ -135,7 +130,7 @@ export const ConsentRow = styled.div`
 
 export const ConsentLabel = styled.p`
   margin: 0;
-  padding-top: 2px;
+  padding-top: var(--space-025);
   flex: 1;
   min-width: 0;
   font-size: var(--type-size-body);
@@ -159,8 +154,8 @@ export const PolicyLink = styled.a`
   }
 
   &:focus-visible {
-    outline: 2px solid var(--color-primary-primary);
-    outline-offset: 2px;
+    outline: var(--stroke-200) solid var(--color-primary-primary);
+    outline-offset: var(--space-025);
   }
 `;
 
@@ -175,23 +170,4 @@ export const StatusMessage = styled.p`
   font-size: var(--type-size-body);
   line-height: 1.35;
   color: var(--color-text-icon-secondary);
-`;
-
-export const SignedInPanel = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-300);
-  max-width: 480px;
-  padding: var(--space-600);
-  border-radius: var(--radius-400);
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-`;
-
-export const SignedInTitle = styled.h1`
-  margin: 0;
-  font-size: var(--type-size-subject);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text-icon-primary);
 `;

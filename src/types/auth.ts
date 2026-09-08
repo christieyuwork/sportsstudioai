@@ -16,16 +16,16 @@ export interface SignInUser {
   displayName: string;
 }
 
-export interface SignInResult {
+interface SignInResult {
   ok: true;
   user: SignInUser;
   /** ISO timestamp — useful when wiring real session expiry later. */
   signedInAt: string;
 }
 
-export interface SignInError {
+interface SignInError {
   ok: false;
-  code: 'CONSENT_REQUIRED' | 'MOCK_FAILURE';
+  code: 'CONSENT_REQUIRED';
   message: string;
 }
 

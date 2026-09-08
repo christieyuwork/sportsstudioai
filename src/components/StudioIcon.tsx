@@ -4,7 +4,7 @@
  * Assets live under /public/icons — never hand-authored SVGs.
  */
 
-export type StudioIconName =
+type StudioIconName =
   | 'sidebar'
   | 'add'
   | 'prompt-add'
@@ -12,9 +12,7 @@ export type StudioIconName =
   | 'videocam'
   | 'search'
   | 'ai-clips'
-  | 'ai-detected'
   | 'dropdown'
-  | 'record'
   | 'ai-stars'
   | 'go-arrow'
   | 'send-arrow'
@@ -31,9 +29,7 @@ const ICON_SRC: Record<StudioIconName, string> = {
   videocam: '/icons/videocam.svg',
   search: '/icons/search.svg',
   'ai-clips': '/icons/ai-clips.svg',
-  'ai-detected': '/icons/ai-detected.svg',
   dropdown: '/icons/dropdown.svg',
-  record: '/icons/record.svg',
   'ai-stars': '/icons/ai-stars.svg',
   'go-arrow': '/icons/go-arrow.svg',
   'send-arrow': '/icons/send-arrow.svg',
