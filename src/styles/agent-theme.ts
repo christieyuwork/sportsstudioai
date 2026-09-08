@@ -1,17 +1,20 @@
 import {
+  Button,
   Card,
   ContentSwitcher,
   HorizontalTabs,
-  IconButton,
   MenuContainer,
-  Scrollbar,
+  SidebarSectionHeader,
+  TextInput,
 } from '@cake-admin/cakeand';
 import {
   DropdownMenu as RadixDropdownMenu,
   Popover as RadixPopover,
 } from 'radix-ui';
 import styled, { css, keyframes } from 'styled-components';
-import { AI_TEXT_GRADIENT, MainPane, PromptBox } from './home-theme';
+import { MainPane, PromptBox } from './home-theme';
+import { StudioScrollbar } from './scrollbar-theme';
+import { AI_TEXT_GRADIENT } from './sports-tokens';
 
 const textShimmer = keyframes`
   from { background-position: 100% 50%; }
@@ -62,33 +65,57 @@ export const ConversationPane = styled.section`
   overflow: hidden;
 `;
 
-export const AgentTextShield = styled.img`
-  position: absolute;
-  z-index: 0;
-  top: 50%;
-  left: 50%;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
+export const EmptyAgentConversation = styled(ConversationPane)`
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-600);
+  box-sizing: border-box;
 `;
 
-export const ConversationScroll = styled(Scrollbar)`
+export const EmptyAgentContent = styled.div`
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  max-width: calc(var(--space-1000) * 8 + var(--space-700));
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-300);
+`;
+
+export const EmptyAgentWelcome = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-050);
+  text-align: center;
+`;
+
+export const EmptyAgentTitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: var(--space-050);
+`;
+
+export const EmptyAgentTitle = styled.h1`
+  margin: 0;
+  color: var(--color-text-icon-primary);
+  font-size: var(--type-size-title);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.35;
+`;
+
+export const EmptyAgentText = styled.p`
+  margin: 0;
+  color: var(--color-text-icon-primary);
+  font-size: var(--type-size-body);
+  line-height: 1.35;
+`;
+
+export const ConversationScroll = styled(StudioScrollbar)`
   && {
     flex: 1;
     min-height: 0;
-  }
-
-  & [data-orientation='vertical'] {
-    width: var(--stroke-200);
-    padding: 0;
-    transition: width 160ms ease;
-  }
-
-  &:hover [data-orientation='vertical'],
-  &:focus-within [data-orientation='vertical'] {
-    width: var(--space-100);
   }
 `;
 
@@ -116,6 +143,7 @@ export const UserBubble = styled.p`
   font-size: var(--type-size-body);
   font-weight: var(--font-weight-regular);
   line-height: 1.35;
+  white-space: pre-wrap;
 `;
 
 export const AssistantResponse = styled.div`
@@ -176,6 +204,23 @@ export const ThinkingLine = styled.span<{ $active: boolean }>`
       : ''}
 `;
 
+export const ReasoningSummaryTrigger = styled(Button)`
+  && {
+    align-self: flex-start;
+    min-height: var(--space-400);
+    padding-inline: 0;
+    color: var(--color-text-icon-secondary);
+    font-size: var(--type-size-caption);
+    font-weight: var(--font-weight-medium);
+  }
+`;
+
+export const ReasoningChevron = styled.span<{ $open: boolean }>`
+  display: inline-flex;
+  transform: ${({ $open }) => ($open ? 'rotate(180deg)' : 'none')};
+  transition: transform 160ms ease;
+`;
+
 export const ReasoningTrace = styled.div`
   display: flex;
   flex-direction: column;
@@ -229,121 +274,12 @@ export const ClipList = styled.div`
   gap: var(--space-200);
 `;
 
-export const ClipCard = styled(Card)<{ $selected: boolean }>`
-  && {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: var(--space-300);
-    min-width: 0;
-    padding: var(--space-200);
-    border: var(--stroke-100) solid
-      ${({ $selected }) =>
-        $selected ? 'var(--color-primary-primary)' : 'var(--color-stroke-border)'};
-    border-radius: var(--radius-300);
-    background: var(--color-surfaces-container-blur);
-    animation: ${cardReveal} 320ms ease-out both;
-  }
-`;
-
-export const ClipThumb = styled.img`
-  width: var(--space-900);
-  height: var(--space-900);
-  flex: none;
-  border-radius: var(--radius-200);
-  object-fit: cover;
-`;
-
-export const ClipCopy = styled.div`
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--space-050);
-`;
-
-export const ClipTitle = styled.h3`
-  margin: 0;
-  color: var(--color-text-icon-primary);
-  font-size: var(--type-size-body);
-  font-weight: var(--font-weight-bold);
-  line-height: 1.35;
-`;
-
-export const ClipDescription = styled.span`
-  margin: 0;
-  overflow: hidden;
-  color: var(--color-text-icon-secondary);
-  font-size: var(--type-size-caption);
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`;
-
-export const DescriptionTooltipWrap = styled.span`
-  display: block;
-  min-width: 0;
-
-  & > button {
-    display: block;
-    width: 100%;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: help;
-  }
-
-  & > button:focus-visible {
-    outline: var(--stroke-200) solid var(--color-primary-primary);
-    outline-offset: var(--space-025);
-  }
-`;
-
-export const ClipMeta = styled.div`
-  display: flex;
-  align-items: center;
-  gap: var(--space-100);
-  color: var(--color-text-icon-secondary);
-  font-size: var(--type-size-caption);
-`;
-
-export const CountryMeta = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-050);
-  padding-inline: var(--space-050);
-  border-radius: var(--radius-1000);
-  background: var(--color-badge-yellow-light);
-  color: var(--color-badge-text-icon-on-yellow-light);
-  font-size: var(--type-size-caption);
-  font-weight: var(--font-weight-bold);
-`;
-
 export const CountryFlag = styled.img`
   display: block;
   width: var(--space-300);
   height: var(--space-300);
   border-radius: var(--radius-1000);
   object-fit: cover;
-`;
-
-export const PreviewClipButton = styled(IconButton)`
-  && {
-    background: var(--color-badge-green-light);
-    color: var(--color-badge-green);
-  }
-`;
-
-export const PreviewPlayGlyph = styled.span`
-  display: block;
-  width: var(--space-350);
-  height: var(--space-350);
-  background: var(--color-badge-green);
-  mask: url('/icons/player/play_circle.svg') center / contain no-repeat;
-  -webkit-mask: url('/icons/player/play_circle.svg') center / contain no-repeat;
 `;
 
 export const ReasoningDetails = styled.div`
@@ -385,39 +321,6 @@ export const AgentComposer = styled.div`
   flex: none;
   padding-inline: var(--space-600);
   box-sizing: border-box;
-`;
-
-export const LibraryWelcome = styled.div`
-  position: relative;
-  z-index: 1;
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-600);
-`;
-
-export const LibraryWelcomeContent = styled.div`
-  display: flex;
-  width: 100%;
-  max-width: calc(var(--space-1000) * 7);
-  flex-direction: column;
-  gap: var(--space-300);
-  text-align: center;
-`;
-
-export const LibraryWelcomeTitle = styled.h1`
-  margin: 0;
-  color: var(--color-text-icon-primary);
-  font-size: var(--type-size-title);
-  font-weight: var(--font-weight-medium);
-`;
-
-export const LibraryWelcomeText = styled.p`
-  margin: 0;
-  color: var(--color-text-icon-secondary);
-  font-size: var(--type-size-caption);
 `;
 
 export const AgentPromptBox = styled(PromptBox)`
@@ -472,8 +375,7 @@ export const PreviewTabsRoot = styled(HorizontalTabs)`
 
 export const PreviewHeader = styled.div`
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-end;
   gap: var(--space-300);
   padding: var(--space-300);
 `;
@@ -483,14 +385,17 @@ export const PreviewPanelBody = styled.div`
   min-height: 0;
   flex: 1;
   flex-direction: column;
+  gap: var(--space-500);
   padding: 0 var(--space-500) var(--space-500);
 `;
 
 export const EmptyPreview = styled.div`
   display: flex;
   flex: 1;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-300);
   color: var(--color-text-icon-primary);
   font-size: var(--type-size-title);
   font-weight: var(--font-weight-medium);
@@ -761,33 +666,6 @@ export const TranscriptLabel = styled.span`
   font-weight: var(--font-weight-medium);
 `;
 
-export const DensePanel = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-200);
-`;
-
-export const DenseStat = styled(Card)`
-  && {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-050);
-    padding: var(--space-200);
-    border-radius: var(--radius-200);
-    background: var(--color-tonal-tonal-secondary-overlay);
-  }
-
-  strong {
-    color: var(--color-text-icon-primary);
-    font-size: var(--type-size-subject);
-  }
-
-  span {
-    color: var(--color-text-icon-secondary);
-    font-size: var(--type-size-caption);
-  }
-`;
-
 export const PreviewActions = styled.div`
   display: flex;
   align-items: center;
@@ -804,12 +682,6 @@ export const PreviewBrand = styled.img`
   object-fit: contain;
 `;
 
-export const ActionStatus = styled.span`
-  color: var(--color-success-success);
-  font-size: var(--type-size-caption);
-  font-weight: var(--font-weight-medium);
-`;
-
 export const ExactIcon = styled.img`
   display: block;
   width: var(--space-350);
@@ -822,7 +694,11 @@ export const FeedbackIcon = styled(ExactIcon)`
 `;
 
 export const AddMenuContent = styled(RadixDropdownMenu.Content)`
-  z-index: 120;
+  /*
+   * This portal can be opened from inside ClipPreviewModal. Keep it above the
+   * modal overlay instead of letting the menu render on the obscured layer.
+   */
+  z-index: 1100;
   outline: none;
 `;
 
@@ -832,86 +708,91 @@ export const AddMenuContainer = styled(MenuContainer)`
   }
 `;
 
-export const ProjectMediaGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-200);
-`;
-
-export const ProjectMediaSwitcher = styled(ContentSwitcher)`
-  width: 100%;
-  flex: none;
-`;
-
-export const MediaLibrary = styled.div`
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--space-500);
-  overflow-y: auto;
-  padding-top: var(--space-500);
-`;
-
-export const MediaLibrarySection = styled.section`
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-300);
-`;
-
-export const MediaLibraryHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-200);
-`;
-
-export const MediaLibraryTitle = styled.h2`
-  margin: 0;
-  color: var(--color-text-icon-primary);
-  font-size: var(--type-size-title);
-  font-weight: var(--font-weight-medium);
-`;
-
-export const UploadedMediaList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-100);
-  padding-top: var(--space-500);
-`;
-
-export const UploadedMediaRow = styled(Card)`
+export const ClipGroupHeader = styled(SidebarSectionHeader)`
   && {
-    display: flex;
-    align-items: center;
-    gap: var(--space-200);
-    padding: var(--space-100);
-    border: var(--stroke-100) solid var(--color-stroke-border);
-    border-radius: var(--radius-300);
-    background: var(--color-surfaces-canvas);
+    padding: var(--space-150) var(--space-200);
   }
 `;
 
-export const UploadedMediaCopy = styled.div`
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--space-025);
+/**
+ * The one content-switcher treatment, from Figma &content switcher 211:40760:
+ * a compact 2px-padded pill track holding equal-width 14px-label segments,
+ * filled and lifted by elevation-0.
+ *
+ * Every switcher in the studio uses this so the media, editor-mode, and any
+ * later segmented control stay identical. cake& sizes its own segments to their
+ * labels, so the geometry and the bold 14px label style are set here.
+ */
+export const StudioContentSwitcher = styled(ContentSwitcher)`
+  && {
+    display: flex;
+    width: 100%;
+    height: var(--space-500);
+    min-height: var(--space-500);
+    flex: none;
+    gap: var(--space-025);
+    padding: var(--space-025);
+    border-radius: var(--radius-1000);
+    background: var(--color-surfaces-on-container);
+    box-sizing: border-box;
+  }
+
+  /* Radix may wrap the segments in a group, so every level has to stretch. */
+  && > * {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  && button {
+    flex: 1 1 0;
+    min-width: 0;
+    height: calc(var(--space-400) + var(--space-025));
+    min-height: calc(var(--space-400) + var(--space-025));
+    padding-block: 0;
+    padding-inline: var(--space-300);
+    border-radius: var(--radius-1000);
+    color: var(--color-surfaces-inverse-container);
+    font-size: var(--type-size-body);
+    font-weight: var(--font-weight-bold);
+    line-height: 1.35;
+    letter-spacing: 0.1px;
+  }
+
+  && button > span {
+    display: flex;
+    min-width: 0;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-100);
+    font: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+  }
+
+  /* Figma clips the label; ellipsize instead so a long segment stays readable. */
+  && button > span > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /*
+    Three-class specificity on purpose: in dark.a cake& replaces the selected
+    segment's elevation with an inset primary ring, and Figma keeps the lifted
+    fill instead. Fill contrast, the shadow, and aria-checked still carry state.
+  */
+  &&& button[data-state='on'] {
+    background: var(--color-surfaces-on-container-high);
+    color: var(--color-text-icon-primary);
+    box-shadow: var(--elevation-0);
+  }
 `;
 
-export const UploadedMediaTitle = styled.span`
-  overflow: hidden;
-  color: var(--color-text-icon-primary);
-  font-size: var(--type-size-body);
-  font-weight: var(--font-weight-bold);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`;
-
-export const UploadedMediaDuration = styled.span`
-  color: var(--color-text-icon-on-tonal);
-  font-size: var(--type-size-caption);
+export const ExampleTextInput = styled(TextInput)`
+  input:focus::placeholder {
+    color: transparent;
+  }
 `;
 
 export const ButtonIconMask = styled.span<{ $asset: string }>`
@@ -922,26 +803,4 @@ export const ButtonIconMask = styled.span<{ $asset: string }>`
   mask: ${({ $asset }) => `url('${$asset}') center / contain no-repeat`};
   -webkit-mask: ${({ $asset }) =>
     `url('${$asset}') center / contain no-repeat`};
-`;
-
-export const ProjectMediaTile = styled(Card)`
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-100);
-  padding: var(--space-200);
-  border-radius: var(--radius-300);
-`;
-
-export const ProjectMediaTileImage = styled.img`
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: var(--radius-200);
-  object-fit: cover;
-`;
-
-export const ProjectMediaTileLabel = styled.p`
-  margin: 0;
-  color: var(--color-text-icon-primary);
-  font-size: var(--type-size-caption);
-  font-weight: var(--font-weight-bold);
 `;

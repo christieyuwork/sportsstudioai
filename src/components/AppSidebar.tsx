@@ -1,11 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { ReactElement } from 'react';
 import styled from 'styled-components';
 import {
   Avatar,
   Button,
-  IconButton,
   MenuContainer,
   MenuItem,
+  Modal,
+  ModalContent,
+  ModalFooter,
   Sidebar,
   SidebarBlock,
   SidebarDivider,
@@ -15,35 +18,75 @@ import {
   SidebarSubItem,
   TextInput,
 } from '@cake-admin/cakeand';
-import { DropdownMenu as RadixDropdownMenu } from 'radix-ui';
+import {
+  DropdownMenu as RadixDropdownMenu,
+  Tooltip as RadixTooltip,
+} from 'radix-ui';
+import { Pencil, Trash2 } from 'lucide-react';
 import type { Project } from '../types/project';
 import type { SignInUser } from '../types/auth';
-import { SPORTS_INDIGO_ALPHA_LIGHTER } from '../styles/sports-theme';
+import {
+  AI_TEXT_GRADIENT,
+  SPORTS_INDIGO_ALPHA_LIGHTER,
+} from '../styles/sports-tokens';
+import { SidebarToggleButton } from './SidebarToggleButton';
 import { StudioIcon } from './StudioIcon';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { TooltipIconButton } from './TooltipIconButton';
 
 export interface AppSidebarProps {
   user: SignInUser;
   projects: Project[];
   activeProjectId: string;
   activeChatId: string | null;
-  activeAgentId?: 'detected' | 'clips' | null;
+  activeProjectView?: 'uploaded' | 'clips' | null;
   onSelectProject: (projectId: string) => void;
   onSelectChat: (chatId: string | null) => void;
-  onSelectAgent: (
+  onSelectProjectView: (
     projectId: string,
-    agentId: 'detected' | 'clips',
+    view: 'uploaded' | 'clips',
   ) => void;
+  onComposeAgent: (projectId: string) => void;
+  onRenameProject: (projectId: string, title: string) => void;
+  onDeleteProject: (projectId: string) => void;
+  onRenameChat: (projectId: string, chatId: string, title: string) => void;
+  onDeleteChat: (projectId: string, chatId: string) => void;
   onNewProject: () => void;
+  onCollapse: () => void;
   onSignOut: () => void;
 }
 
-const AGENT_ITEMS = [
-  { id: 'detected', label: 'Detected events', icon: 'ai-detected' as const },
+const PROJECT_MEDIA_ITEMS = [
+  { id: 'uploaded', label: 'User-uploaded media', icon: 'videocam' as const },
   { id: 'clips', label: 'Generated clips', icon: 'ai-clips' as const },
 ] as const;
 
 /** Sample org label above the user name (Figma 174:26517 "Sports Team"). */
 const SAMPLE_TEAM_NAME = 'My Sports Team';
+
+function SidebarLabelTooltip({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactElement;
+}) {
+  return (
+    <RadixTooltip.Root>
+      <RadixTooltip.Trigger asChild>{children}</RadixTooltip.Trigger>
+      <RadixTooltip.Portal>
+        <SidebarTooltipContent
+          side="bottom"
+          align="start"
+          sideOffset={4}
+          avoidCollisions
+        >
+          {label}
+        </SidebarTooltipContent>
+      </RadixTooltip.Portal>
+    </RadixTooltip.Root>
+  );
+}
 
 /**
  * Sports rail on cake& Sidebar + SidebarNav + SidebarBlock (Figma 174:26426).
@@ -59,21 +102,51 @@ export function AppSidebar({
   projects,
   activeProjectId,
   activeChatId,
-  activeAgentId = null,
+  activeProjectView = null,
   onSelectProject,
   onSelectChat,
-  onSelectAgent,
+  onSelectProjectView,
+  onComposeAgent,
+  onRenameProject,
+  onDeleteProject,
+  onRenameChat,
+  onDeleteChat,
   onNewProject,
+  onCollapse,
   onSignOut,
 }: AppSidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
   const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(
+    activeProjectId,
+  );
+  const [renameTarget, setRenameTarget] = useState<
+    | { type: 'project'; projectId: string; title: string }
+    | { type: 'chat'; projectId: string; chatId: string; title: string }
+    | null
+  >(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<
+    | { type: 'project'; projectId: string; title: string }
+    | {
+        type: 'agent';
+        projectId: string;
+        chatId: string;
+        title: string;
+      }
+    | null
+  >(null);
+
+  useEffect(() => {
+    setExpandedProjectId(activeProjectId);
+  }, [activeProjectId]);
 
   /** Selected tab: the project row unless a chat thread under it is open. */
   const tabValue =
     activeChatId ??
-    (activeAgentId ? `${activeProjectId}-${activeAgentId}` : activeProjectId);
+    (activeProjectView
+      ? `${activeProjectId}-${activeProjectView}`
+      : activeProjectId);
   const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
   const visibleProjects = useMemo(() => {
     if (!normalizedQuery) return projects;
@@ -95,14 +168,12 @@ export function AppSidebar({
   }, [normalizedQuery, projects]);
 
   function handleValueChange(next: string) {
-    if (next === 'video-manager') return;
-
-    if (next.endsWith('-detected') || next.endsWith('-clips')) {
-      const projectId = next.replace(/-(detected|clips)$/, '');
-      const agentId = next.endsWith('-detected') ? 'detected' : 'clips';
+    if (next.endsWith('-uploaded') || next.endsWith('-clips')) {
+      const projectId = next.replace(/-(uploaded|clips)$/, '');
+      const view = next.endsWith('-uploaded') ? 'uploaded' : 'clips';
       onSelectProject(projectId);
       onSelectChat(null);
-      onSelectAgent(projectId, agentId);
+      onSelectProjectView(projectId, view);
       return;
     }
 
@@ -121,85 +192,147 @@ export function AppSidebar({
     }
   }
 
-  function renderProjectActions() {
+  function toggleProject(projectId: string) {
+    setExpandedProjectId((current) =>
+      current === projectId ? null : projectId,
+    );
+  }
+
+  function openRename(
+    target:
+      | { type: 'project'; projectId: string; title: string }
+      | { type: 'chat'; projectId: string; chatId: string; title: string },
+  ) {
+    setRenameTarget(target);
+    setRenameValue(target.title);
+  }
+
+  function submitRename() {
+    const title = renameValue.trim();
+    if (!title || !renameTarget) return;
+    if (renameTarget.type === 'project') {
+      onRenameProject(renameTarget.projectId, title);
+    } else {
+      onRenameChat(renameTarget.projectId, renameTarget.chatId, title);
+    }
+    setRenameTarget(null);
+  }
+
+  function renderProjectActions(projectId: string) {
     return (
       <ProjectActions
         onClick={(event) => event.stopPropagation()}
         onMouseDown={(event) => event.preventDefault()}
       >
-        <IconButton
-          size="sm"
+        <TooltipIconButton
+          size="xs"
           variant="ghost"
           intent="secondary"
           label="Compose"
-          icon={<StudioIcon name="compose" size={18} />}
+          icon={<StudioIcon name="compose" size={20} />}
+          onClick={() => onComposeAgent(projectId)}
         />
-        <IconButton
-          size="sm"
-          variant="ghost"
-          intent="secondary"
-          label="More"
-          icon={<StudioIcon name="more-vert" size={18} />}
-        />
+        <RadixDropdownMenu.Root>
+          <RadixDropdownMenu.Trigger asChild>
+            <TooltipIconButton
+              size="xs"
+              variant="ghost"
+              intent="secondary"
+              label="Project options"
+              icon={<StudioIcon name="more-vert" size={20} />}
+            />
+          </RadixDropdownMenu.Trigger>
+          <RadixDropdownMenu.Portal>
+            <SidebarMenuContent side="bottom" align="end" sideOffset={8}>
+              <MenuContainer
+                role="menu"
+                aria-label="Project actions"
+                width="calc(var(--space-1000) * 2)"
+              >
+                <RadixDropdownMenu.Item asChild>
+                  <MenuItem
+                    leftSlot={<Pencil size={16} />}
+                    showRightSlot={false}
+                    onClick={() => {
+                      const project = projects.find(
+                        (item) => item.id === projectId,
+                      );
+                      if (project) {
+                        openRename({
+                          type: 'project',
+                          projectId,
+                          title: project.title,
+                        });
+                      }
+                    }}
+                  >
+                    Rename
+                  </MenuItem>
+                </RadixDropdownMenu.Item>
+                <RadixDropdownMenu.Item asChild>
+                  <DeleteSidebarMenuItem
+                    leftSlot={<Trash2 size={16} />}
+                    showRightSlot={false}
+                    onClick={() => {
+                      const project = projects.find(
+                        (item) => item.id === projectId,
+                      );
+                      if (project) {
+                        setDeleteTarget({
+                          type: 'project',
+                          projectId,
+                          title: project.title,
+                        });
+                      }
+                    }}
+                  >
+                    Delete
+                  </DeleteSidebarMenuItem>
+                </RadixDropdownMenu.Item>
+              </MenuContainer>
+            </SidebarMenuContent>
+          </RadixDropdownMenu.Portal>
+        </RadixDropdownMenu.Root>
       </ProjectActions>
     );
   }
 
   return (
-    <RailShell>
+    <>
+      <RadixTooltip.Provider delayDuration={300}>
+        <RailShell>
       <StyledSidebar value={tabValue} onValueChange={handleValueChange}>
         <StyledSidebarNav
           aria-label="Studio navigation"
           appName="Sports AI Studio"
           surface="translucent"
-          collapsed={collapsed}
           logo={
-            <IconButton
-              size="sm"
-              intent="secondary"
-              variant="ghost"
-              label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              icon={<StudioIcon name="sidebar" size={20} />}
-              onClick={() => setCollapsed((value) => !value)}
-            />
+            <SidebarToggleButton label="Collapse sidebar" onClick={onCollapse} />
           }
         >
-          {!collapsed ? (
-            <>
-              <SearchSlot>
-                <TextInput
-                  placeholder="Search chat history"
-                  startIcon={<StudioIcon name="search" size={18} />}
-                  aria-label="Search chat history"
-                  size="sm"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                />
-              </SearchSlot>
+          <SearchSlot>
+            <TextInput
+              placeholder="Search projects"
+              startIcon={<StudioIcon name="search" size={18} />}
+              aria-label="Search projects"
+              size="sm"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+          </SearchSlot>
 
-              <SidebarDivider />
+          <SidebarDivider />
 
-              <NewProjectButton
-                size="md"
-                intent="primary"
-                variant="tonal"
-                startIcon={<StudioIcon name="add" size={18} />}
-                onClick={onNewProject}
-                fullWidth
-              >
-                New project
-              </NewProjectButton>
-
-              <SidebarDivider />
-            </>
-          ) : null}
-
-          <ProjectSidebarItem
-            value="video-manager"
-            icon={<StudioIcon name="videocam" size={24} />}
+          <NewProjectButton
+            size="md"
+            intent="primary"
+            variant="tonal"
+            startIcon={<StudioIcon name="add" size={18} />}
+            onClick={onNewProject}
+            fullWidth
           >
-            Video manager
-          </ProjectSidebarItem>
+            New project
+          </NewProjectButton>
 
           <SidebarDivider />
 
@@ -211,7 +344,11 @@ export function AppSidebar({
 
           {visibleProjects.map((project) => {
             const isActive = project.id === activeProjectId;
+            const isExpanded = expandedProjectId === project.id;
             const showActions = isActive || hoveredProjectId === project.id;
+            const hasUploadedMedia = project.media.length > 0;
+            const hasGeneratedMedia =
+              project.events.length > 0 || project.generatedClips.length > 0;
 
             return (
               <ProjectHost
@@ -219,59 +356,151 @@ export function AppSidebar({
                 onMouseEnter={() => setHoveredProjectId(project.id)}
                 onMouseLeave={() => setHoveredProjectId(null)}
               >
-                {isActive ? (
+                {isExpanded ? (
                   <ProjectBlock
                     surface="translucent"
                     item={
-                      <ProjectSidebarItem
-                        value={project.id}
-                        data-project-active={isActive}
-                      >
-                        {project.title}
-                      </ProjectSidebarItem>
+                      <SidebarLabelTooltip label={project.title}>
+                        <ProjectSidebarItem
+                          value={project.id}
+                          data-project-active={isActive}
+                          onClick={() => toggleProject(project.id)}
+                        >
+                          <ProjectItemLabel>{project.title}</ProjectItemLabel>
+                        </ProjectSidebarItem>
+                      </SidebarLabelTooltip>
                     }
                   >
-                    {AGENT_ITEMS.map((agent) => (
+                    {PROJECT_MEDIA_ITEMS.map((item) => (
                       <ProjectSubItem
-                        key={agent.id}
-                        value={`${project.id}-${agent.id}`}
+                        key={item.id}
+                        value={`${project.id}-${item.id}`}
+                        disabled={
+                          item.id === 'uploaded'
+                            ? !hasUploadedMedia
+                            : !hasGeneratedMedia
+                        }
                       >
                         <SubItemContent>
-                          <StudioIcon name={agent.icon} size={20} />
-                          <SubItemLabel>{agent.label}</SubItemLabel>
+                          <GradientMediaIcon
+                            data-media-icon
+                            $asset={`/icons/${item.icon}.svg`}
+                            aria-hidden="true"
+                          />
+                          <SubItemLabel>{item.label}</SubItemLabel>
                         </SubItemContent>
                       </ProjectSubItem>
                     ))}
 
+                    <BlockDivider />
                     {project.chatThreads.length > 0 ? (
-                      <>
-                        <BlockDivider />
-                        {project.chatThreads.map((thread) => (
-                          <ProjectSubItem key={thread.id} value={thread.id}>
-                            <SubItemLabel>{thread.label}</SubItemLabel>
-                          </ProjectSubItem>
-                        ))}
-                      </>
-                    ) : null}
+                      project.chatThreads.map((thread) => {
+                        const isThreadActive = activeChatId === thread.id;
+                        return (
+                          <ThreadHost
+                            key={thread.id}
+                            data-thread-active={isThreadActive}
+                          >
+                            <SidebarLabelTooltip label={thread.label}>
+                              <ProjectSubItem value={thread.id}>
+                                <ThreadLabel>{thread.label}</ThreadLabel>
+                              </ProjectSubItem>
+                            </SidebarLabelTooltip>
+                            <ThreadActions
+                              onClick={(event) => event.stopPropagation()}
+                              onMouseDown={(event) => event.preventDefault()}
+                            >
+                              <RadixDropdownMenu.Root>
+                                <RadixDropdownMenu.Trigger asChild>
+                                  <TooltipIconButton
+                                    size="xs"
+                                    variant="ghost"
+                                    intent="secondary"
+                                    label={`Options for ${thread.label}`}
+                                    icon={
+                                      <StudioIcon name="more-vert" size={20} />
+                                    }
+                                  />
+                                </RadixDropdownMenu.Trigger>
+                                <RadixDropdownMenu.Portal>
+                                  <SidebarMenuContent
+                                    side="bottom"
+                                    align="end"
+                                    sideOffset={8}
+                                  >
+                                    <MenuContainer
+                                      role="menu"
+                                      aria-label={`Actions for ${thread.label}`}
+                                      width="calc(var(--space-1000) * 2)"
+                                    >
+                                      <RadixDropdownMenu.Item asChild>
+                                        <MenuItem
+                                          leftSlot={<Pencil size={16} />}
+                                          showRightSlot={false}
+                                          onClick={() =>
+                                            openRename({
+                                              type: 'chat',
+                                              projectId: project.id,
+                                              chatId: thread.id,
+                                              title: thread.label,
+                                            })
+                                          }
+                                        >
+                                          Rename
+                                        </MenuItem>
+                                      </RadixDropdownMenu.Item>
+                                      <RadixDropdownMenu.Item asChild>
+                                        <DeleteSidebarMenuItem
+                                          leftSlot={<Trash2 size={16} />}
+                                          showRightSlot={false}
+                                          onClick={() =>
+                                            setDeleteTarget({
+                                              type: 'agent',
+                                              projectId: project.id,
+                                              chatId: thread.id,
+                                              title: thread.label,
+                                            })
+                                          }
+                                        >
+                                          Delete
+                                        </DeleteSidebarMenuItem>
+                                      </RadixDropdownMenu.Item>
+                                    </MenuContainer>
+                                  </SidebarMenuContent>
+                                </RadixDropdownMenu.Portal>
+                              </RadixDropdownMenu.Root>
+                            </ThreadActions>
+                          </ThreadHost>
+                        );
+                      })
+                    ) : (
+                      <ProjectSubItem
+                        value={`${project.id}-no-agents`}
+                        disabled
+                      >
+                        <SubItemLabel>No agents yet</SubItemLabel>
+                      </ProjectSubItem>
+                    )}
                   </ProjectBlock>
                 ) : (
-                  <ProjectSidebarItem
-                    value={project.id}
-                    data-project-active={isActive}
-                  >
-                    {project.title}
-                  </ProjectSidebarItem>
+                  <SidebarLabelTooltip label={project.title}>
+                    <ProjectSidebarItem
+                      value={project.id}
+                      data-project-active={isActive}
+                      onClick={() => toggleProject(project.id)}
+                    >
+                      <ProjectItemLabel>{project.title}</ProjectItemLabel>
+                    </ProjectSidebarItem>
+                  </SidebarLabelTooltip>
                 )}
 
-                {showActions && !collapsed ? renderProjectActions() : null}
+                {showActions ? renderProjectActions(project.id) : null}
               </ProjectHost>
             );
           })}
         </StyledSidebarNav>
       </StyledSidebar>
 
-      {!collapsed ? (
-        <>
           <FooterDivider />
           <UserRow>
             <Avatar
@@ -286,12 +515,12 @@ export function AppSidebar({
             </UserMeta>
             <RadixDropdownMenu.Root>
               <RadixDropdownMenu.Trigger asChild>
-                <IconButton
+                <TooltipIconButton
                   size="sm"
                   intent="secondary"
                   variant="ghost"
                   label="Account options"
-                  icon={<StudioIcon name="dropdown" size={24} />}
+                  icon={<StudioIcon name="dropdown" size={20} />}
                 />
               </RadixDropdownMenu.Trigger>
               <RadixDropdownMenu.Portal>
@@ -315,9 +544,60 @@ export function AppSidebar({
               </RadixDropdownMenu.Portal>
             </RadixDropdownMenu.Root>
           </UserRow>
-        </>
-      ) : null}
-    </RailShell>
+        </RailShell>
+      </RadixTooltip.Provider>
+
+      <Modal
+        open={renameTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRenameTarget(null);
+        }}
+        title={renameTarget?.type === 'project' ? 'Rename project' : 'Rename agent'}
+        subtitle="Update the title shown in the sidebar."
+        footer={
+          <ModalFooter
+            checkbox={<span aria-hidden />}
+            secondaryActionLabel="Cancel"
+            onSecondaryAction={() => setRenameTarget(null)}
+            primaryActionLabel="Save"
+            primaryActionDisabled={!renameValue.trim()}
+            onPrimaryAction={submitRename}
+          />
+        }
+      >
+        <ModalContent descriptionAsDialogDescription={false}>
+          <TextInput
+            label={renameTarget?.type === 'project' ? 'Project title' : 'Agent title'}
+            value={renameValue}
+            onChange={(event) => setRenameValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                submitRename();
+              }
+            }}
+            autoFocus
+          />
+        </ModalContent>
+      </Modal>
+
+      <ConfirmDeleteModal
+        open={deleteTarget !== null}
+        itemName={deleteTarget?.title ?? ''}
+        itemType={deleteTarget?.type ?? 'item'}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          if (deleteTarget.type === 'project') {
+            onDeleteProject(deleteTarget.projectId);
+          } else {
+            onDeleteChat(deleteTarget.projectId, deleteTarget.chatId);
+          }
+        }}
+      />
+    </>
   );
 }
 
@@ -329,7 +609,7 @@ const RailShell = styled.div`
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  width: 320px;
+  width: calc(var(--space-1000) * 4);
   flex-shrink: 0;
   min-height: calc(100vh - 2 * var(--space-300));
   align-self: stretch;
@@ -368,6 +648,16 @@ const StyledSidebarNav = styled(SidebarNav)`
     width: 100% !important;
   }
 
+  /* Radix wraps viewport content in a display:table box that grows to
+     max-content, so one long project or agent label widened every row past the
+     rail instead of letting the labels ellipsize. */
+  [data-radix-scroll-area-viewport] > * {
+    display: block !important;
+    box-sizing: border-box;
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+
   /* Title left, collapse right (Figma 174:26428). cake's own collapse control
      lives in the footer, so the brand row is reordered and the logo slot holds
      the toggle. */
@@ -390,6 +680,10 @@ const StyledSidebarNav = styled(SidebarNav)`
 const SearchSlot = styled.div`
   width: 100%;
   --color-tonal-tonal: var(--color-surfaces-on-container-low);
+
+  input:focus::placeholder {
+    color: transparent;
+  }
 `;
 
 /**
@@ -424,9 +718,12 @@ const NewProjectButton = styled(Button)`
  */
 const ProjectSidebarItem = styled(SidebarItem)`
   && {
-    height: 40px;
-    min-height: 40px;
-    padding-right: var(--space-100);
+    position: relative;
+    height: var(--space-700);
+    min-height: var(--space-700);
+    min-width: 0;
+    overflow: hidden;
+    padding-right: calc(var(--space-1000) + var(--space-100));
     font-size: var(--type-size-caption);
     letter-spacing: 0.2px;
   }
@@ -443,7 +740,15 @@ const ProjectSidebarItem = styled(SidebarItem)`
 
   &&[data-state='active']:not(:disabled)::before,
   &&[data-project-active='true']:not(:disabled)::before {
-    height: 20px;
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: var(--space-050);
+    height: var(--space-500);
+    border-radius: var(--radius-1000);
+    background: var(--color-text-icon-on-tonal);
+    transform: translateY(-50%);
   }
 `;
 
@@ -461,7 +766,9 @@ const ProjectBlock = styled(SidebarBlock)`
  */
 const ProjectSubItem = styled(SidebarSubItem)`
   && {
-    min-height: 32px;
+    min-height: var(--space-600);
+    min-width: 0;
+    overflow: hidden;
     padding: var(--space-050) var(--space-200);
     gap: var(--space-100);
     font-size: var(--type-size-caption);
@@ -470,6 +777,18 @@ const ProjectSubItem = styled(SidebarSubItem)`
 
   &&[data-state='active'] {
     background: var(--color-secondary-secondary-overlay);
+  }
+
+  &&:disabled,
+  &&[data-disabled] {
+    background: transparent;
+    color: var(--color-disabled-disabled-inverse);
+    opacity: 1;
+  }
+
+  &&:disabled [data-media-icon],
+  &&[data-disabled] [data-media-icon] {
+    background: var(--color-disabled-disabled-inverse);
   }
 `;
 
@@ -491,11 +810,34 @@ const ProjectActions = styled.div`
   position: absolute;
   top: 0;
   right: var(--space-100);
-  height: 40px;
+  height: var(--space-700);
   z-index: 2;
   display: flex;
   align-items: center;
   gap: var(--space-050);
+`;
+
+const ThreadHost = styled.div`
+  position: relative;
+  width: 100%;
+  min-width: 0;
+
+  &:hover > div:last-child,
+  &[data-thread-active='true'] > div:last-child {
+    opacity: 1;
+    pointer-events: auto;
+  }
+`;
+
+const ThreadActions = styled.div`
+  position: absolute;
+  top: 50%;
+  right: var(--space-100);
+  z-index: 2;
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
 `;
 
 const SubItemContent = styled.span`
@@ -505,11 +847,56 @@ const SubItemContent = styled.span`
   min-width: 0;
 `;
 
+const GradientMediaIcon = styled.span<{ $asset: string }>`
+  display: block;
+  width: var(--space-400);
+  height: var(--space-400);
+  flex: none;
+  background: ${AI_TEXT_GRADIENT};
+  mask: ${({ $asset }) => `url('${$asset}') center / contain no-repeat`};
+  -webkit-mask: ${({ $asset }) =>
+    `url('${$asset}') center / contain no-repeat`};
+`;
+
 const SubItemLabel = styled.span`
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+`;
+
+const ProjectItemLabel = styled(SubItemLabel)`
+  display: block;
+  width: 100%;
+`;
+
+const ThreadLabel = styled(SubItemLabel)`
+  display: block;
+  width: 100%;
+  padding-right: var(--space-800);
+`;
+
+const SidebarMenuContent = styled(RadixDropdownMenu.Content)`
+  z-index: 120;
+  outline: none;
+`;
+
+const SidebarTooltipContent = styled(RadixTooltip.Content)`
+  z-index: 140;
+  max-width: calc(var(--space-1000) * 3);
+  padding: var(--space-100) var(--space-200);
+  border-radius: var(--radius-200);
+  background: var(--color-surfaces-inverse-container);
+  color: var(--color-text-icon-inverse);
+  box-shadow: var(--elevation-2);
+  font-size: var(--type-size-caption);
+  line-height: 1.35;
+`;
+
+const DeleteSidebarMenuItem = styled(MenuItem)`
+  && {
+    color: var(--color-error-error);
+  }
 `;
 
 const FooterDivider = styled(SidebarDivider)`

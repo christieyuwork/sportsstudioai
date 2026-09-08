@@ -1,4 +1,5 @@
-import type { Project, ProjectMediaItem } from '../types/project';
+import { formatClipTitle } from '../lib/clipTitle';
+import type { DetectedEvent, Project, ProjectMediaItem } from '../types/project';
 
 /**
  * Demo scenario: Germany vs Netherlands with generic player names
@@ -9,12 +10,15 @@ export const DEMO_PROJECT_ID = 'germany-netherlands';
 const EVENT_THUMB = '/media/thumbs/event-1.png';
 const EVENT_THUMB_ALT = '/media/thumbs/event-2.png';
 
-export const demoProjects: Project[] = [
-  {
+/** Keeps every detected event on the canonical title shape. */
+function detectedEvent(event: Omit<DetectedEvent, 'title'>): DetectedEvent {
+  return { ...event, title: formatClipTitle(event) };
+}
+
+export const DEMO_PROJECT: Project = {
     id: DEMO_PROJECT_ID,
     title: 'Germany vs Netherlands',
     heading: 'Germany vs Netherlands on 11 July',
-    navItems: ['Detected events', 'Generated clips'],
     chatThreads: [
       { id: 'chat-1', label: 'Equalizer sequence highlights' },
       { id: 'chat-2', label: 'Late pressure package' },
@@ -22,38 +26,48 @@ export const demoProjects: Project[] = [
       { id: 'chat-4', label: 'Post-match reactions' },
     ],
     events: [
-      {
+      detectedEvent({
         id: 'evt-1',
         timestamp: '1:23',
-        title: 'Goal!',
+        minute: 62,
+        eventType: 'goal',
+        player: 'Alex Rivera',
+        country: 'Germany',
         description:
           'Alex Rivera of Germany strikes the top of the net to equalize.',
         thumbnailUrl: EVENT_THUMB,
-      },
-      {
+      }),
+      detectedEvent({
         id: 'evt-2',
         timestamp: '0:42',
-        title: 'Shot on goal',
+        minute: 18,
+        eventType: 'shot on goal',
+        player: 'Jordan Lee',
+        country: 'Netherlands',
         description:
           'Jordan Lee of Netherlands tests the keeper from the edge of the box.',
         thumbnailUrl: EVENT_THUMB_ALT,
-      },
-      {
+      }),
+      detectedEvent({
         id: 'evt-3',
         timestamp: '0:38',
-        title: 'Penalty kick',
+        minute: 77,
+        eventType: 'penalty kick',
+        player: 'Sam Okoye',
+        country: 'Germany',
         description:
           'Sam Okoye of Germany converts from the spot after a late challenge.',
         thumbnailUrl: EVENT_THUMB,
-      },
-      {
+      }),
+      detectedEvent({
         id: 'evt-4',
         timestamp: '1:05',
-        title: 'Crowd at halftime',
+        minute: 45,
+        eventType: 'crowd at halftime',
         description:
           'Supporters fill the stands as both sides reset for the second half.',
         thumbnailUrl: EVENT_THUMB_ALT,
-      },
+      }),
     ],
     generatedClips: [],
     media: [],
@@ -64,69 +78,38 @@ export const demoProjects: Project[] = [
       'Analyze yellow cards and provide clips',
       'Give me a celebration Instagram reel',
     ],
-  },
-  {
-    id: 'friendlies-archive',
-    title: 'Summer friendlies archive',
-    heading: 'Summer friendlies archive',
-    navItems: [],
-    chatThreads: [],
-    events: [],
-    generatedClips: [],
-    media: [],
-    videos: [],
-    promptSuggestions: [],
-  },
-  {
-    id: 'youth-showcase',
-    title: 'Youth showcase day',
-    heading: 'Youth showcase day',
-    navItems: [],
-    chatThreads: [],
-    events: [],
-    generatedClips: [],
-    media: [],
-    videos: [],
-    promptSuggestions: [],
-  },
-  {
-    id: 'training-clips',
-    title: 'Training ground clips',
-    heading: 'Training ground clips',
-    navItems: [],
-    chatThreads: [],
-    events: [],
-    generatedClips: [],
-    media: [],
-    videos: [],
-    promptSuggestions: [],
-  },
-  {
-    id: 'academy-day',
-    title: 'Academy match day',
-    heading: 'Academy match day',
-    navItems: [],
-    chatThreads: [],
-    events: [],
-    generatedClips: [],
-    media: [],
-    videos: [],
-    promptSuggestions: [],
-  },
-];
+};
 
 /** Media items added after a successful mock upload. */
 export const demoUploadedMedia: ProjectMediaItem[] = [
   {
     id: 'media-broadcast',
-    title: 'Broadcast feed',
+    title: 'Broadcast: BBC',
     durationLabel: '72 mins',
     thumbnailUrl: '/media/thumbs/media-broadcast.png',
   },
   {
     id: 'media-interview',
     title: 'Interview with fans',
-    durationLabel: '12 mins',
+    durationLabel: '72 mins',
     thumbnailUrl: '/media/thumbs/media-interview.png',
+  },
+  {
+    id: 'media-press-conference',
+    title: 'Official press conference',
+    durationLabel: '72 mins',
+    thumbnailUrl: '/media/thumbs/media-broadcast.png',
+  },
+  {
+    id: 'media-broadcast-alt',
+    title: 'Broadcast: BBC',
+    durationLabel: '72 mins',
+    thumbnailUrl: '/media/thumbs/media-interview.png',
+  },
+  {
+    id: 'media-broadcast-backup',
+    title: 'Broadcast: BBC',
+    durationLabel: '72 mins',
+    thumbnailUrl: '/media/thumbs/media-broadcast.png',
   },
 ];

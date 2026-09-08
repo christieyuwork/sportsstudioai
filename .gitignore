@@ -3,7 +3,10 @@ dist
 .DS_Store
 *.local
 
-# Not committed deliberately. The cake& dependency is pinned to an immutable
-# release URL, so there is no version drift for a lockfile to guard against,
-# and committing one would mean regenerating it on every version bump.
-package-lock.json
+# Local visual verification / editor artifacts
+.dev-check.log
+test-results/
+editor-check*.png
+
+# Ignore the accidentally nested copy; keep `.cursor/rules/` itself.
+.cursor/.cursor/

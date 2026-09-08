@@ -15,6 +15,7 @@ Figma:
 - Sign-in: https://www.figma.com/design/gR3R6BRWS9ReGfTnkqxDjf/Sports-AI-Studio?node-id=16-20194
 - Empty home: https://www.figma.com/design/gR3R6BRWS9ReGfTnkqxDjf/Sports-AI-Studio?node-id=171-23651
 - Filled home: https://www.figma.com/design/gR3R6BRWS9ReGfTnkqxDjf/Sports-AI-Studio?node-id=16-20432
+- Video editor (agent panel): https://www.figma.com/design/gR3R6BRWS9ReGfTnkqxDjf/Sports-AI-Studio?node-id=266-27506
 
 ## Scope
 

@@ -9,12 +9,12 @@ import {
   ConsentRow,
   GlassPanel,
   HeroBlock,
+  LoginBrandIcon,
   NvidiaLogo,
   PolicyLink,
   PoweredByRow,
   PoweredByText,
   StatusMessage,
-  StudioIcon,
   Title,
 } from '../styles/sports-theme';
 
@@ -49,7 +49,7 @@ export function SignInCard({
     <GlassPanel>
       <HeroBlock>
         <BrandBlock>
-          <StudioIcon
+          <LoginBrandIcon
             src="/brand/studio-icon.svg"
             width={72}
             height={72}
